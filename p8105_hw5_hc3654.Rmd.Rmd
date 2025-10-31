@@ -1,0 +1,122 @@
+---
+title: "p8105_hw5_hc3654.Rmd"
+output: github_document
+---
+
+
+```{r}
+library(tidyverse)
+library(plotly)
+library(broom)
+library(webshot2)
+```
+
+
+
+# Problem 1
+
+
+
+## Function 
+
+```{r}
+set.seed(1)
+
+bd_dupchecks = function(n_subj){
+birthday = sample(1:365, n_subj, replace = TRUE)
+
+check = length(unique(birthday)) < n_subj
+
+check
+}
+
+bd_results_df = 
+  expand_grid(bdays = 2:50, iter = 1:10000) |> 
+  mutate(duplicate = map(bdays, bd_dupchecks)) |> 
+  unnest(duplicate)
+  
+bd_results_df |>
+  group_by(bdays) |> 
+  summarise(probability = mean(duplicate)) |> 
+  plot_ly( x = ~bdays, y = ~probability, type = "scatter", mode = "lines")
+```
+
+
+
+## Problem 2
+
+```{r}
+set.seed(1)
+t_test = function(n = 30, mu = 0 , sigma = 5){
+ df = rnorm(n, mu, sigma) 
+
+  test_result = t.test(df, mu = 0)
+  result_df = broom::tidy(test_result) |> 
+    select(estimate, p.value)
+  
+  Reject = result_df$p.value < 0.05
+  result =tibble(Reject, estimate = result_df$estimate)
+  
+  return(result)
+}
+
+estimate_df <- 
+expand_grid(
+  mu = c(0,1,2,3,4,5,6),
+  iter = 1:5000) |> 
+  mutate(estimate = map(mu, ~ t_test(n = 30, mu = .x, sigma = 5))) |> 
+  unnest(estimate) 
+  
+avg_estimate_all <- 
+  estimate_df |> 
+  group_by(mu) |> 
+  summarise(avg_estimate_all = mean(estimate),
+    rejected_prop= mean(Reject))
+
+
+avg_estimate_reject <- 
+estimate_df |> 
+  filter(Reject == TRUE) |> 
+  group_by(mu) |> 
+  summarise(avg_estimate_reject = mean(estimate))
+
+avg_estimate <- 
+  left_join(avg_estimate_all,avg_estimate_reject)
+
+```
+
+```{r}
+
+#Make a plot showing the proportion of times the null was rejected (the power of the test) on the y axis and the true value of 𝜇on the x axis. Describe the association between effect size and power.
+
+avg_estimate |> 
+  plot_ly(y = ~rejected_prop, x = ~mu, type = 'scatter', mode = "lines") |> 
+  layout(xaxis = list(title = "True Mean"), yaxis = list(title = "Rejected Proportion"))
+
+```
+
+```{r}
+#Make a plot showing the average estimate of 𝜇̂ on the y axis and the true value of 𝜇on the x axis. Make a second plot (or overlay on the first) the average estimate of 𝜇̂ only in samples for which the null was rejected on the y axis and the true value of 𝜇on the x axis. Is the sample average of 𝜇̂ across tests for which the null is rejected approximately equal to the true value of 𝜇? Why or why not?
+
+
+new_avg_estimate <- avg_estimate |> 
+  pivot_longer(
+    cols = starts_with("avg_estimate_"),
+    names_to = "avg_estimate",
+    names_prefix = "avg_estimate_",
+    values_to = "avg_mu_hat"
+  ) 
+
+
+new_avg_estimate |> 
+  plot_ly( y = ~avg_mu_hat, x = ~mu, color = ~avg_estimate, type = 'scatter', mode = 'lines+markers') |> 
+  add_text(y = ~ifelse(avg_estimate == "all", 
+                avg_mu_hat - 0.50,  
+                avg_mu_hat + 0.25), text = ~round(avg_mu_hat, 3),textposition = 'top center',textfont = list(size = 10),showlegend = FALSE
+  ) |>
+  layout(xaxis = list(title = 'True Mean'), yaxis = list(title = 'Average value of Mu hat'))
+
+```
+
+```
+
