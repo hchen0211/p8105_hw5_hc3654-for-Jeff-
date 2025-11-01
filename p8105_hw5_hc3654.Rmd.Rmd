@@ -38,12 +38,15 @@ bd_results_df =
 bd_results_df |>
   group_by(bdays) |> 
   summarise(probability = mean(duplicate)) |> 
-  plot_ly( x = ~bdays, y = ~probability, type = "scatter", mode = "lines")
+  plot_ly( x = ~bdays, y = ~probability, type = "scatter", mode = "lines") |> 
+  add_text(y = ~probability + 0.03,text = ~round(probability, 2),textfont = list(size = 5, color = 'black'),name = "Probability") |> 
+  layout(title = "Relationship Between group size and the probability of same birthday")
 ```
 
+The plot shows the probability of at least two people sharing a birthday as a function of the group size. The relationship is non-linear and increases rapidly. The probability from 0.0024 while group size is 2, crosses 50% when the group size is 23, and by the time the group size reaches 50, the probability of a shared birthday is approximately 97.0%.
 
 
-## Problem 2
+# Problem 2
 
 ```{r}
 set.seed(1)
@@ -91,9 +94,14 @@ avg_estimate <-
 
 avg_estimate |> 
   plot_ly(y = ~rejected_prop, x = ~mu, type = 'scatter', mode = "lines") |> 
-  layout(xaxis = list(title = "True Mean"), yaxis = list(title = "Rejected Proportion"))
+  layout(xaxis = list(title = "True Mean"), yaxis = list(title = "Rejected Proportion")) |> 
+  add_text(y = ~rejected_prop + 0.06, text = ~paste0(round(rejected_prop * 100, 1), "%"), textposition = "top center") |> 
+  layout(title = "Relationship between Rejected Proportion and Their True Mean" )
 
 ```
+
+The association between effect size and power is positive; in other words, a larger true $\mu$ increases the proportion of times the null hypothesis ($H_0: \mu = 0$) is rejected. When the true $\mu = 0$, the hypothesis was rejected in only 5.1% of simulations. In contrast, when $\mu$ was 5 or 6, all 5,000 simulations for each of these values resulted in the t-test rejecting $H_0$.
+
 
 ```{r}
 #Make a plot showing the average estimate of 𝜇̂ on the y axis and the true value of 𝜇on the x axis. Make a second plot (or overlay on the first) the average estimate of 𝜇̂ only in samples for which the null was rejected on the y axis and the true value of 𝜇on the x axis. Is the sample average of 𝜇̂ across tests for which the null is rejected approximately equal to the true value of 𝜇? Why or why not?
@@ -114,9 +122,91 @@ new_avg_estimate |>
                 avg_mu_hat - 0.50,  
                 avg_mu_hat + 0.25), text = ~round(avg_mu_hat, 3),textposition = 'top center',textfont = list(size = 10),showlegend = FALSE
   ) |>
-  layout(xaxis = list(title = 'True Mean'), yaxis = list(title = 'Average value of Mu hat'))
+  layout(title = "Relationship Between Average value of Mu hat and True Mean", xaxis = list(title = 'True Mean'), yaxis = list(title = 'Average value of Mu hat'))
 
 ```
 
+Across all tests, the average estimate of $\hat{\mu}$ is approximately equal to the true value of $\mu$, confirming it is an unbiased estimator. However, the average $\hat{\mu}$ from only those samples for which the null was rejected is systematically higher than the true $\mu$, particularly at smaller effect sizes such as $\mu = 1, 2, \text{ and } 3$. This is caused by selection bias. The t-test ($H_0: \mu = 0$) only "rejects" samples when their $\hat{\mu}$ is surprisingly far from 0. When the true $\mu$ is small (e.g., $\mu = 2$), only the samples that, by random chance, overestimate the mean (e.g., $\hat{\mu} = 2.8$) are far enough from 0 to be rejected. By filtering for only this "rejected" group, we are looking at a biased subgroup that systematically overestimates the true $\mu$. This bias disappears as $\mu$ becomes large because the power (rejection rate) approaches 100%, meaning all samples are included in the "rejected" group.
+
+
+# Problem 3
+
+```{r}
+raw_data2 <- read_csv("https://raw.githubusercontent.com/washingtonpost/data-homicides/refs/heads/master/homicide-data.csv")
 ```
+
+The raw data (raw_data2) is a large tibble containing 52,179 observations, where each row represents a single homicide victim. The columns include a unique uid for the case, the victim's name, race, age, and sex, the date the incident was reported, the location (city, state), and the disposition of the case (e.g., "Closed with arrest", "Open/No arrest"). The disposition column is critical for determining if a case is unsolved.
+
+
+```{r}
+
+city_state_df <- 
+raw_data2 |> 
+  unite(city_state, city, state, sep = ', ')|> 
+  select(city_state, uid, disposition) |> 
+  group_by(city_state) |> 
+  summarise(homicides_total = n(), homicides_unsolved = sum(disposition == "Closed without arrest" | disposition == "Open/No arrest")) |> 
+  mutate(prop_unsolved = homicides_unsolved / homicides_total)
+
+city_ci = function(place){
+city_state_df |> 
+  filter(city_state == place) |> 
+  with(prop.test(x = homicides_unsolved, n = homicides_total)) |> 
+  broom::tidy() |> 
+  select(estimate, conf.low , conf.high) |> 
+  mutate(city_state = place) |> 
+  janitor::clean_names()
+}
+```
+
+
+```{r}
+city_ci("Boston, MA")
+
+city_ci_df = map_dfr(city_state_df$city_state, city_ci)|> 
+arrange(desc(estimate))
+
+city_ci_df 
+
+
+
+```
+
+
+```{r}
+plot_data <- city_ci_df  |>
+  mutate(
+    city_state = fct_reorder(city_state, estimate)
+  )
+
+
+plot_ly(plot_data,height = 1400) |>
+  add_segments(
+    x = ~conf_low, 
+    xend = ~conf_high,
+    y = ~city_state, 
+    yend = ~city_state,
+    color = I("gray"),
+    name = "95% CI"
+  ) |>
+    add_markers(
+    x = ~estimate, 
+    y = ~city_state,
+    color = I("darkblue"),
+    name = "Estimate"
+  ) |>
+  layout(
+    title = "Relationship Between City and Their Unsolved Homicides cases (with 95% CI)",
+    xaxis = list(title = "Estimated Proportion Unsolved"),
+    yaxis = list(title = "City")
+  )
+```
+
+
+This plot shows the estimated proportion of unsolved homicides for all 50 cities. The city with the highest proportion is clearly Chicago, IL.
+
+Conversely, the lowest proportion technically belongs to Tulsa, AL. However, upon inspecting the data, this estimate is based on only one total homicide case, making it an unreliable outlier.
+
+Excluding this outlier, Richmond, VA has the lowest proportion of unsolved homicide cases among the cities in this dataset.
+
 
