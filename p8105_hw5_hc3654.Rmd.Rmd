@@ -39,11 +39,11 @@ bd_results_df |>
   group_by(bdays) |> 
   summarise(probability = mean(duplicate)) |> 
   plot_ly( x = ~bdays, y = ~probability, type = "scatter", mode = "lines") |> 
-  add_text(y = ~probability + 0.03,text = ~round(probability, 2),textfont = list(size = 5, color = 'black'),name = "Probability") |> 
+  add_text(y = ~probability + 0.03,text = ~round(probability, 2),textfont = list(size = 5, color = 'black'), name = "Probability") |> 
   layout(title = "Relationship Between group size and the probability of same birthday")
 ```
 
-The plot shows the probability of at least two people sharing a birthday as a function of the group size. The relationship is non-linear and increases rapidly. The probability from 0.0024 while group size is 2, crosses 50% when the group size is 23, and by the time the group size reaches 50, the probability of a shared birthday is approximately 97.0%.
+The probability starts at a very low level, such as 0.0024 when the group size is $n=2$. It then grows quickly, crossing 50% when the group size reaches $n=23$, meaning the chance of a shared birthday has already reached half. By the time the group size reaches $n=50$, the probability of a shared birthday is approximately 97.0%, indicating it is almost certain that two people will share a birthday. This demonstrates that a relatively small group is able to achieve an extremely high probability of having overlapping birthdays.
 
 
 # Problem 2
@@ -65,7 +65,7 @@ t_test = function(n = 30, mu = 0 , sigma = 5){
 
 estimate_df <- 
 expand_grid(
-  mu = c(0,1,2,3,4,5,6),
+  mu = c(1,2,3,4,5,6),
   iter = 1:5000) |> 
   mutate(estimate = map(mu, ~ t_test(n = 30, mu = .x, sigma = 5))) |> 
   unnest(estimate) 
@@ -161,7 +161,7 @@ city_state_df |>
 
 
 ```{r}
-city_ci("Boston, MA")
+city_ci("Baltimore, MD")
 
 city_ci_df = map_dfr(city_state_df$city_state, city_ci)|> 
 arrange(desc(estimate))
