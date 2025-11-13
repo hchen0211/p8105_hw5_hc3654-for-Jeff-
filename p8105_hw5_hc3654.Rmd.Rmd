@@ -50,6 +50,7 @@ The probability starts at a very low level, such as 0.0024 when the group size i
 
 ```{r}
 set.seed(1)
+
 t_test = function(n = 30, mu = 0 , sigma = 5){
  df = rnorm(n, mu, sigma) 
 
@@ -62,6 +63,12 @@ t_test = function(n = 30, mu = 0 , sigma = 5){
   
   return(result)
 }
+
+expand_grid(
+  mu = 0,
+  iter = 1:5000) |> 
+  mutate(estimate = map(mu, ~ t_test(n = 30, mu = .x, sigma = 5))) |> 
+  unnest(estimate) 
 
 estimate_df <- 
 expand_grid(
